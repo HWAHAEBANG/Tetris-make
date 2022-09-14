@@ -2,6 +2,9 @@ import BLOCKS from "./blocks.js"
 
 // DOM
 const playground = document.querySelector('.playground > ul');
+const gameText = document.querySelector('.game-text');
+const scoreDisplay = document.querySelector('.score');
+const restartButton = document.querySelector('.game-text > button')
 
 // Setting
 const GAME_ROWS = 20;
@@ -16,7 +19,7 @@ let tempMovingItem;
 
 
 const movingItem = {
-  type: "tree",
+  type: "",
   direction: 0,
   top: 0,
   left: 3
@@ -26,14 +29,12 @@ init();
 
 // functions
 function init() {
-  tempMovingItem = {
-    ...movingItem
-  }; //  sallow copy가 되기때문에 이렇게 스프레드 오퍼레이터 해주지 않으면 오브젝트 heap값이 바뀌어버림
+  tempMovingItem = {...movingItem}; //  sallow copy가 되기때문에 이렇게 스프레드 오퍼레이터 해주지 않으면 오브젝트 heap값이 바뀌어버림
   // 이렇게 하면 오브젝트 전체가 아니라 값만 가져올 수 있음.
   for (let i = 0; i < GAME_ROWS; i++) {
     prependNewLine()
   }
-  renderBlocks()
+  generateNewBlock()
 }
 
 function prependNewLine() {
@@ -66,17 +67,19 @@ function renderBlocks(moveType="" /* movetype을 보내는 moveBlock함수 외�
     if (isAvailable) {
       target.classList.add(type, 'moving') // 클래스를 type뿐만 아니라 moving도 같이주기 
     } else { // 잘못된 방향(넘침)으로 갈 경우 movingItem을 다시 넣고 다시 렌더링 돌려주는 역할을 함
-      tempMovingItem = {
-        ...movingItem 
-      } // 원상복구\
+      tempMovingItem = {...movingItem } // 원상복구\
       //renderBlocks(); // 다시실행(재귀함수)
       /** 재귀함수를 사용할 떄는 조심해야 하는게 콜스택 ,맥시멈, 액시드 같은 에러가 발생할 수있음
        * 그걸 방지하기위해 재귀함수를 이벤트루프안에 넣지 말고 웹으로 빼놨다가(테스크 큐에 넣어놨다가) 다시 실행할 수 있도록
        * setTimeout으로 밖같으로 잠시 빼놓는다.  
        * 그러면 이벤트 루프에 예약된 이벤트들이 다 실행이된 후에 스택에 다시 집어넣기 때문에 0초를 부여해도, 
        * 이벤트 스택이 넘치는 것을 방지할 수 있음!!*/
+      if(moveType === 'retry'){
+        clearInterval(downInterval);
+        showGameoverText();
+      }
       setTimeout(() => {
-        renderBlocks();
+        renderBlocks('retry');
         if (moveType === 'top') { // 아래로 넘치는 것을 방지하기 위한 코드
           seizeBlock();
         }
@@ -96,10 +99,38 @@ function seizeBlock() { // 아주 중요한 역할. 끝까지 가서 내려갈 �
     moving.classList.remove("moving");
     moving.classList.add('seized');
   })
+  checkMatch();
+}
+function checkMatch(){
+  const childNodes = playground.childNodes;
+  childNodes.forEach(child=>{
+    let matched = true;
+    child.children[0].childNodes.forEach(li=>{
+      if(!li.classList.contains('seized')){
+        matched = false;
+      }
+    })
+    if(matched){ 
+      child.remove();
+      prependNewLine();
+      score++;
+      scoreDisplay.innerText = score;
+    }
+  })  
   generateNewBlock();
 }
 
 function generateNewBlock(){
+ clearInterval(downInterval); // 진행중인 인터벌 있을 수 있으니까 꺼주기
+downInterval = setInterval(()=>{
+  moveBlock('top',1);
+},duration)
+
+  const blockArray = Object.entries(BLOCKS); // 배열 형태로 변경됨
+  const randomIndex = Math.floor(Math.random() * blockArray.length);
+  // BLOCKS의 length는 undefind가 나옴. 왜냐 배열이 아닌 오브젝트라서.
+  
+  movingItem.type = blockArray[randomIndex][0];
   movingItem.top = 0;
   movingItem.left = 3;
   movingItem.direction = 0;
@@ -129,6 +160,17 @@ function chageDirection() {
   // }
 }
 
+function dropblock(){
+  clearInterval(downInterval);
+  downInterval = setInterval(()=>{
+    moveBlock('top',1)
+  },10 )
+}
+
+function showGameoverText(){ 
+  gameText.style.display = 'flex' ;
+}
+
 // event handling 
 document.addEventListener('keydown', e => {
   switch (e.keyCode) {
@@ -144,8 +186,19 @@ document.addEventListener('keydown', e => {
     case 38:
       chageDirection();
       break;
+    case 32:
+      dropblock();
+      break;
     default:
       break;
   }
   // console.log( e);
+})
+
+restartButton.addEventListener('click', () =>{
+  playground.innerHTML = "";
+  gameText.style.display = 'none';
+  init();
+  score = 0;
+  scoreDisplay.innerText = score;
 })
